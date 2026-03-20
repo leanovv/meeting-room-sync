@@ -497,19 +497,18 @@
                 // 彻底修复时区 - 直接使用客户端本地时间
                 var date = new Date(data.created_at);
                 
-                // 格式化为 YYYY-MM-DD HH:mm:ss
-                var year = date.getFullYear();
-                var month = String(date.getMonth() + 1).padStart(2, '0');
-                var day = String(date.getDate()).padStart(2, '0');
-                var hours = String(date.getHours()).padStart(2, '0');
-                var minutes = String(date.getMinutes()).padStart(2, '0');
-                var seconds = String(date.getSeconds()).padStart(2, '0');
-                
-                var time = year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds;
+                // 如果是 ISO 格式，转换一下
+                if (time.includes('T')) {
+                    var date = new Date(time);
+                    time = date.getFullYear() + '-' + 
+                           String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+                           String(date.getDate()).padStart(2, '0') + ' ' +
+                           String(date.getHours()).padStart(2, '0') + ':' + 
+                           String(date.getMinutes()).padStart(2, '0') + ':' + 
+                           String(date.getSeconds()).padStart(2, '0');
+                }
                 
                 document.getElementById('meetingTime').textContent = '发送时间: ' + time;
-                
-                console.log('原始时间:', data.created_at);
                 console.log('显示时间:', time);
             }
             
