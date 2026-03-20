@@ -41,9 +41,53 @@
             margin: 0 auto 30px;
             font-size: 14px;
         }
-        .status.checking {
-            background: #17a2b8;
+        
+        /* 会议室选择器 */
+        .room-selector {
+            margin-bottom: 20px;
         }
+        .room-selector label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #333;
+        }
+        .room-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .room-btn {
+            padding: 20px;
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+            font-size: 16px;
+        }
+        .room-btn:hover {
+            background: #e9ecef;
+            border-color: #667eea;
+        }
+        .room-btn.selected {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        .selected-room {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 18px;
+            color: #0066cc;
+            font-weight: bold;
+        }
+        
         textarea {
             width: 100%;
             padding: 15px;
@@ -73,6 +117,10 @@
         }
         button:hover { background: #5568d3; }
         button:active { transform: scale(0.98); }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
         .btn-success { background: #28a745; }
         .btn-success:hover { background: #218838; }
         .btn-secondary { background: #6c757d; }
@@ -90,14 +138,6 @@
         .meeting-display {
             display: none;
         }
-        .meeting-title {
-            font-size: 28px;
-            margin-bottom: 10px;
-        }
-        .meeting-time {
-            color: #666;
-            margin-bottom: 20px;
-        }
         .tips {
             background: rgba(255,255,255,0.15);
             padding: 20px;
@@ -110,35 +150,54 @@
 </head>
 <body>
     <div class="container">
-        <!-- 标题 -->
-        <h1>会议室 <span id="roomNum">1</span></h1>
-        <div class="status" id="status">● 自动检查更新中...</div>
+        <h1>会议室 <span id="roomNum">系统</span></h1>
+        <div class="status" id="status">● 在线</div>
 
-        <!-- 输入区域 -->
-        <div class="card" id="inputArea">
+        <!-- 会议室选择界面（仅手机/电脑端） -->
+        <div class="card" id="selectorArea" style="display: none;">
+            <h2 style="margin-bottom: 20px;">📍 选择要发送的会议室</h2>
+            
+            <div class="room-selector">
+                <div class="room-grid" id="roomGrid">
+                    <!-- 动态生成会议室按钮 -->
+                </div>
+            </div>
+            
+            <div class="selected-room" id="selectedRoomDisplay" style="display: none;">
+                已选择：<span id="selectedRoomName"></span>
+            </div>
+            
+            <h3 style="margin: 20px 0 10px 0;">📋 粘贴会议链接</h3>
+            <textarea 
+                id="meetingLinkSelector" 
+                placeholder="从 Teams 或 Outlook 复制会议链接..."></textarea>
+            <button onclick="sendMeetingWithSelector()" id="sendBtnSelector" disabled>选择会议室后发送 →</button>
+            <div class="success" id="successMsgSelector">✓ 已发送成功！</div>
+        </div>
+
+        <!-- 输入区域（大屏端） -->
+        <div class="card" id="inputArea" style="display: none;">
             <h2 style="margin-bottom: 15px;">📋 粘贴会议链接</h2>
             <p style="color: #666; margin-bottom: 15px;">从 Teams 或 Outlook 复制会议链接</p>
             <textarea 
                 id="meetingLink" 
-                placeholder="粘贴会议链接到这里...&#10;&#10;例如：&#10;https://teams.microsoft.com/l/meetup-join/..."></textarea>
+                placeholder="粘贴会议链接到这里..."></textarea>
             <button onclick="sendMeeting()">发送到大屏 →</button>
             <div class="success" id="successMsg">✓ 已发送成功！</div>
         </div>
 
         <!-- 会议显示区域 -->
         <div class="card meeting-display" id="meetingArea">
-            <div class="meeting-title" id="meetingTitle">Teams 会议</div>
-            <div class="meeting-time" id="meetingTime"></div>
+            <h2 id="meetingTitle" style="font-size: 28px; margin-bottom: 10px;">Teams 会议</h2>
+            <p style="color: #666; margin-bottom: 20px;" id="meetingTime"></p>
             <button onclick="joinMeeting()" class="btn-success">🎥 加入会议</button>
-            <button onclick="backToInput()" class="btn-secondary" style="margin-top: 10px;">← 返回输入</button>
+            <button onclick="backToInput()" class="btn-secondary" style="margin-top: 10px;">← 返回</button>
         </div>
 
         <!-- 使用提示 -->
-        <div class="tips">
+        <div class="tips" id="tipsArea">
             <h3>💡 使用说明</h3>
-            <p>• 系统每 3 秒自动检查更新</p>
-            <p>• 手机发送后，大屏会自动显示</p>
-            <p>• 多个设备可同时打开同一房间</p>
+            <p id="tipText">• 系统每 3 秒自动检查更新</p>
         </div>
     </div>
 
@@ -150,29 +209,211 @@
         var SUPABASE_URL = 'https://yruovhpprgmfaaypskww.supabase.co';
         var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlydW92aHBwcmdtZmFheXBza3d3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5Nzg5NTQsImV4cCI6MjA4OTU1NDk1NH0.sw2LmaNMWNQNpObl5nIWgJMzmRmDkkb6zbwBeQBtU4c';
         
+        // 会议室配置（可自定义）
+        var ROOMS = [
+            { id: 'room1', name: '会议室 1' },
+            { id: 'room2', name: '会议室 2' },
+            { id: 'room3', name: '会议室 3' },
+            { id: 'room4', name: '会议室 4' },
+            { id: 'room5', name: '会议室 5' },
+            { id: 'room6', name: '会议室 6' }
+        ];
+        
         // 全局变量
         var db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         var params = new URLSearchParams(location.search);
-        var roomId = params.get('room') || 'room1';
+        var roomId = params.get('room');
         var currentLink = '';
         var lastCreatedAt = null;
         var checkInterval;
+        var selectedRoom = null;
         
         // 初始化
-        document.getElementById('roomNum').textContent = roomId.replace('room', '');
-        console.log('房间 ID:', roomId);
-        
-        // 启动
         init();
         
         function init() {
-            console.log('初始化系统...');
+            if (roomId) {
+                // 大屏模式（带 room 参数）
+                initDisplayMode();
+            } else {
+                // 选择器模式（无 room 参数）
+                initSelectorMode();
+            }
+        }
+        
+        // === 大屏模式 ===
+        function initDisplayMode() {
+            console.log('大屏模式 - 房间:', roomId);
             
-            // 加载已有会议
+            document.getElementById('roomNum').textContent = getRoomName(roomId);
+            document.getElementById('inputArea').style.display = 'block';
+            document.getElementById('selectorArea').style.display = 'none';
+            
+            var tipsEl = document.getElementById('tipsArea');
+            tipsEl.querySelector('h3').textContent = '💡 大屏模式';
+            tipsEl.querySelector('#tipText').innerHTML = 
+                '• 系统每 3 秒自动检查更新<br>' +
+                '• 手机发送后会自动显示<br>' +
+                '• 也可以在此大屏直接输入';
+            
             loadExistingMeeting();
-            
-            // 启动自动检查（每3秒）
             startAutoCheck();
+        }
+        
+        // === 选择器模式 ===
+        function initSelectorMode() {
+            console.log('选择器模式');
+            
+            document.getElementById('roomNum').textContent = '选择';
+            document.getElementById('selectorArea').style.display = 'block';
+            document.getElementById('inputArea').style.display = 'none';
+            
+            var tipsEl = document.getElementById('tipsArea');
+            tipsEl.querySelector('h3').textContent = '💡 手机端模式';
+            tipsEl.querySelector('#tipText').innerHTML = 
+                '• 选择要发送的会议室<br>' +
+                '• 粘贴会议链接<br>' +
+                '• 大屏会自动显示';
+            
+            // 渲染会议室按钮
+            renderRoomButtons();
+        }
+        
+        // 渲染会议室按钮
+        function renderRoomButtons() {
+            var grid = document.getElementById('roomGrid');
+            grid.innerHTML = '';
+            
+            ROOMS.forEach(function(room) {
+                var btn = document.createElement('div');
+                btn.className = 'room-btn';
+                btn.textContent = room.name;
+                btn.onclick = function() {
+                    selectRoom(room);
+                };
+                grid.appendChild(btn);
+            });
+        }
+        
+        // 选择会议室
+        function selectRoom(room) {
+            selectedRoom = room.id;
+            
+            // 更新按钮状态
+            var buttons = document.querySelectorAll('.room-btn');
+            buttons.forEach(function(btn) {
+                btn.classList.remove('selected');
+            });
+            event.target.classList.add('selected');
+            
+            // 显示已选择
+            document.getElementById('selectedRoomDisplay').style.display = 'block';
+            document.getElementById('selectedRoomName').textContent = room.name;
+            
+            // 启用发送按钮
+            document.getElementById('sendBtnSelector').disabled = false;
+            document.getElementById('sendBtnSelector').textContent = '发送到 ' + room.name + ' →';
+            
+            console.log('已选择:', room.name);
+        }
+        
+        // 选择器模式发送
+        async function sendMeetingWithSelector() {
+            if (!selectedRoom) {
+                alert('请先选择会议室');
+                return;
+            }
+            
+            var link = document.getElementById('meetingLinkSelector').value.trim();
+            
+            if (!link) {
+                alert('请先粘贴会议链接');
+                return;
+            }
+            
+            if (!link.startsWith('http://') && !link.startsWith('https://')) {
+                alert('请输入完整的网址（以 http:// 或 https:// 开头）');
+                return;
+            }
+            
+            console.log('发送到会议室:', selectedRoom);
+            await sendToRoom(selectedRoom, link);
+            
+            // 显示成功
+            var successEl = document.getElementById('successMsgSelector');
+            successEl.style.display = 'block';
+            setTimeout(function() {
+                successEl.style.display = 'none';
+            }, 3000);
+            
+            // 清空输入
+            document.getElementById('meetingLinkSelector').value = '';
+        }
+        
+        // === 通用函数 ===
+        
+        // 获取会议室名称
+        function getRoomName(id) {
+            var room = ROOMS.find(function(r) { return r.id === id; });
+            return room ? room.name : id;
+        }
+        
+        // 发送到指定房间
+        async function sendToRoom(targetRoomId, link) {
+            console.log('发送会议到:', targetRoomId);
+            
+            try {
+                var now = new Date().toISOString();
+                var result = await db
+                    .from('meetings')
+                    .upsert({ 
+                        room_id: targetRoomId, 
+                        link: link,
+                        title: '即将开始的会议',
+                        created_at: now
+                    }, {
+                        onConflict: 'room_id'
+                    });
+                
+                if (result.error) {
+                    console.error('发送失败:', result.error);
+                    alert('发送失败: ' + result.error.message);
+                    return false;
+                }
+                
+                console.log('✓ 发送成功');
+                return true;
+                
+            } catch (e) {
+                console.error('发送异常:', e);
+                alert('发送失败: ' + e.message);
+                return false;
+            }
+        }
+        
+        // 大屏模式发送
+        async function sendMeeting() {
+            var link = document.getElementById('meetingLink').value.trim();
+            
+            if (!link) {
+                alert('请先粘贴会议链接');
+                return;
+            }
+            
+            if (!link.startsWith('http://') && !link.startsWith('https://')) {
+                alert('请输入完整的网址');
+                return;
+            }
+            
+            var success = await sendToRoom(roomId, link);
+            
+            if (success) {
+                document.getElementById('successMsg').style.display = 'block';
+                setTimeout(function() {
+                    document.getElementById('successMsg').style.display = 'none';
+                    checkForUpdates();
+                }, 1500);
+            }
         }
         
         // 加载已有会议
@@ -189,25 +430,24 @@
                     console.log('找到已有会议');
                     lastCreatedAt = result.data.created_at;
                     showMeeting(result.data);
-                    updateStatus('在线 - 已加载会议');
+                    document.getElementById('status').textContent = '● 在线 - 已加载';
                 } else {
                     console.log('无已有会议');
-                    updateStatus('在线 - 等待会议');
+                    document.getElementById('status').textContent = '● 在线 - 等待会议';
                 }
             } catch (e) {
                 console.log('加载会议:', e.message);
-                updateStatus('在线 - 等待会议');
+                document.getElementById('status').textContent = '● 在线 - 等待会议';
             }
         }
         
         // 启动自动检查
         function startAutoCheck() {
             console.log('启动自动检查（每3秒）');
-            updateStatus('在线 - 自动检查中');
             
             checkInterval = setInterval(function() {
                 checkForUpdates();
-            }, 3000); // 每3秒检查一次
+            }, 3000);
         }
         
         // 检查更新
@@ -222,90 +462,19 @@
                 if (result.data && result.data.link) {
                     var newCreatedAt = result.data.created_at;
                     
-                    // 检查是否是新数据
                     if (!lastCreatedAt || newCreatedAt !== lastCreatedAt) {
                         console.log('🔔 检测到新会议！');
-                       lastCreatedAt = newCreatedAt;
+                        lastCreatedAt = newCreatedAt;
                         showMeeting(result.data);
                         
                         var time = new Date().toLocaleTimeString();
-                        updateStatus('✓ 已更新 (' + time + ')');
-                    } else {
-                        // 无新数据
-                        var statusEl = document.getElementById('status');
-                        if (!statusEl.textContent.includes('✓ 已更新')) {
-                            updateStatus('在线 - 自动检查中');
-                        }
+                        document.getElementById('status').textContent = '● 已更新 (' + time + ')';
                     }
                 }
             } catch (e) {
-                // 忽略"无记录"错误
                 if (e.code !== 'PGRST116') {
                     console.error('检查失败:', e.message);
                 }
-            }
-        }
-        
-        // 发送会议
-        async function sendMeeting() {
-            var link = document.getElementById('meetingLink').value.trim();
-            
-            if (!link) {
-                alert('请先粘贴会议链接');
-                return;
-            }
-            
-            if (!link.startsWith('http://') && !link.startsWith('https://')) {
-                alert('请输入完整的网址（以 http:// 或 https:// 开头）');
-                return;
-            }
-            
-            console.log('发送会议链接...');
-            updateStatus('发送中...');
-            
-            try {
-                var now = new Date().toISOString();
-                var result = await db
-                    .from('meetings')
-                    .upsert({ 
-                        room_id: roomId, 
-                        link: link,
-                        title: '即将开始的会议',
-                        created_at: now
-                    }, {
-                        onConflict: 'room_id'
-                    });
-                
-                if (result.error) {
-                    console.error('发送失败:', result.error);
-                    alert('发送失败: ' + result.error.message);
-                    updateStatus('发送失败');
-                    return;
-                }
-                
-                console.log('✓ 发送成功');
-                lastCreatedAt = now;
-                
-                // 显示成功提示
-                var successEl = document.getElementById('successMsg');
-                successEl.style.display = 'block';
-                
-                // 立即检查更新
-                setTimeout(function() {
-                    checkForUpdates();
-                }, 500);
-                
-                // 隐藏成功提示
-                setTimeout(function() {
-                    successEl.style.display = 'none';
-                }, 2000);
-                
-                updateStatus('✓ 发送成功');
-                
-            } catch (e) {
-                console.error('发送异常:', e);
-                alert('发送失败: ' + e.message);
-                updateStatus('发送失败');
             }
         }
         
@@ -327,7 +496,6 @@
         
         // 返回输入
         function backToInput() {
-            console.log('返回输入界面');
             document.getElementById('inputArea').style.display = 'block';
             document.getElementById('meetingArea').style.display = 'none';
             document.getElementById('meetingLink').value = '';
@@ -339,26 +507,12 @@
             
             console.log('加入会议:', currentLink);
             
-            // 尝试拉起 Teams 应用
             var teamsProtocol = currentLink.replace('https://', 'msteams://');
             window.location.href = teamsProtocol;
             
-            // 备用：打开网页版
             setTimeout(function() {
                 window.open(currentLink, '_self');
             }, 1000);
-        }
-        
-        // 更新状态显示
-        function updateStatus(text) {
-            var statusEl = document.getElementById('status');
-            statusEl.textContent = '● ' + text;
-            
-            if (text.includes('检查中')) {
-                statusEl.className = 'status checking';
-            } else {
-                statusEl.className = 'status';
-            }
         }
         
         console.log('=== 系统就绪 ===');
