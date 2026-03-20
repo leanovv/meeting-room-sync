@@ -486,11 +486,29 @@
             document.getElementById('meetingTitle').textContent = data.title || 'Teams 会议';
             
             if (data.created_at) {
-                var time = new Date(data.created_at).toLocaleString('zh-CN');
+                // 修复时区问题 - 强制显示北京时间
+                var date = new Date(data.created_at);
+                
+                // 方法1：使用 toLocaleString 指定时区
+                var time = date.toLocaleString('zh-CN', {
+                    timeZone: 'Asia/Shanghai',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                });
+                
                 document.getElementById('meetingTime').textContent = '发送时间: ' + time;
             }
             
             document.getElementById('inputArea').style.display = 'none';
+            document.getElementById('meetingArea').style.display = 'none';
+            if (document.getElementById('selectorArea')) {
+                document.getElementById('selectorArea').style.display = 'none';
+            }
             document.getElementById('meetingArea').style.display = 'block';
         }
         
