@@ -1,10 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <title>会议室同步系统</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -85,6 +84,7 @@
             min-height: 140px;
             font-family: inherit;
             transition: border-color 0.3s;
+            resize: vertical;
         }
         textarea:focus {
             outline: none;
@@ -147,16 +147,16 @@
             </h1>
             <div class="status online" id="displayStatus">● 在线</div>
             <h2 style="margin-top: 40px; font-weight: 400;">请用手机扫码发送会议链接</h2>
-            <div class="qrcode-box">
-                <canvas id="qrcode"></canvas>
+            <div class="qrcode-box" id="qrcodeContainer">
+                <p style="color: #666;">二维码加载中...</p>
             </div>
             <p style="font-size: 18px; margin-top: 20px;">
                 或访问: <br>
-                <strong style="font-size: 22px; word-break: break-all;" id="url"></strong>
+                <strong style="font-size: 20px; word-break: break-all;" id="urlDisplay"></strong>
             </p>
         </div>
-        <div id="meeting" class="meeting-box">
-            <h2 style="font-size: 36px; margin-bottom: 15px;" id="title">Teams 会议</h2>
+        <div id="meetingDisplay" class="meeting-box">
+            <h2 style="font-size: 36px; margin-bottom: 15px;" id="meetingTitle">Teams 会议</h2>
             <p style="font-size: 16px; color: #666;" id="meetingTime"></p>
             <button class="join-btn" onclick="joinMeeting()">🎥 加入会议</button>
         </div>
@@ -176,7 +176,7 @@
                 id="meetingLink" 
                 placeholder="从 Teams 或 Outlook 复制会议链接粘贴到这里&#10;&#10;例如：&#10;https://teams.microsoft.com/l/meetup-join/..."></textarea>
             <button class="btn" onclick="sendMeeting()">发送到大屏 →</button>
-            <div class="success" id="success">✓ 已发送到大屏！</div>
+            <div class="success" id="successMsg">✓ 已发送到大屏！</div>
         </div>
         
         <div class="tips">
@@ -189,11 +189,11 @@
     </div>
 
     <script>
-        // ⚠️ 重要：请替换为您的 Supabase 配置
-        const SUPABASE_URL = 'https://yruovhpprgmfaaypskww.supabase.co';  
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlydW92aHBwcmdtZmFheXBza3d3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5Nzg5NTQsImV4cCI6MjA4OTU1NDk1NH0.sw2LmaNMWNQNpObl5nIWgJMzmRmDkkb6zbwBeQBtU4c';  
+        // Supabase 配置
+        const SUPABASE_URL = 'https://yruovhpprgmfaaypskww.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlydW92aHBwcmdtZmFheXBza3d3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5Nzg5NTQsImV4cCI6MjA4OTU1NDk1NH0.sw2LmaNMWNQNpObl5nIWgJMzmRmDkkb6zbwBeQBtU4c';
         
-        // 初始化 Supabase
+        // 初始化 Supabase（只声明一次）
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
         // 获取参数
@@ -218,15 +218,16 @@
             document.getElementById('roomNum1').textContent = roomId.replace('room', '');
             
             const mobileUrl = `${location.origin}${location.pathname}?room=${roomId}&type=mobile`;
-            document.getElementById('url').textContent = mobileUrl;
+            document.getElementById('urlDisplay').textContent = mobileUrl;
             
-            // 生成二维码
-            QRCode.toCanvas(
-                document.getElementById('qrcode'),
-                mobileUrl,
-                { width: 300, margin: 2 },
-                (err) => { if (err) console.error(err); }
-            );
+            // 使用 API 生成二维码
+            const qrContainer = document.getElementById('qrcodeContainer');
+            qrContainer.innerHTML = `
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(mobileUrl)}" 
+                     alt="扫码访问" 
+                     style="display: block; width: 100%; max-width: 300px; border-radius: 10px;"
+                     onerror="this.parentElement.innerHTML='<p style=color:#666;>二维码加载失败<br>请手动输入网址</p>'">
+            `;
 
             // 订阅实时更新
             realtimeChannel = supabase
@@ -275,9 +276,6 @@
             document.getElementById('mobileMode').style.display = 'block';
             document.getElementById('roomNum2').textContent = roomId.replace('room', '');
             
-            // 检查连接状态
-            supabase.realtime.setAuth(SUPABASE_KEY);
-            
             setTimeout(() => {
                 const status = document.getElementById('mobileStatus');
                 status.textContent = '✓ 已连接';
@@ -288,7 +286,7 @@
         // 显示会议信息
         function showMeeting(data) {
             currentMeetingLink = data.link;
-            document.getElementById('title').textContent = data.title || 'Teams 会议';
+            document.getElementById('meetingTitle').textContent = data.title || 'Teams 会议';
             
             if (data.created_at) {
                 const time = new Date(data.created_at).toLocaleString('zh-CN');
@@ -296,7 +294,7 @@
             }
             
             document.getElementById('waiting').style.display = 'none';
-            document.getElementById('meeting').style.display = 'block';
+            document.getElementById('meetingDisplay').style.display = 'block';
         }
 
         // 发送会议链接
@@ -308,7 +306,7 @@
                 return;
             }
 
-            if (!link.includes('teams.microsoft.com') && !link.includes('zoom.us')) {
+            if (!link.includes('teams.microsoft.com') && !link.includes('zoom.us') && !link.includes('meet.google.com')) {
                 if (!confirm('链接格式可能不正确，是否仍要发送？')) {
                     return;
                 }
@@ -331,14 +329,12 @@
                 return;
             }
 
-            // 显示成功提示
-            const successEl = document.getElementById('success');
+            const successEl = document.getElementById('successMsg');
             successEl.style.display = 'block';
             setTimeout(() => {
                 successEl.style.display = 'none';
             }, 3000);
             
-            // 清空输入
             document.getElementById('meetingLink').value = '';
         }
 
@@ -346,11 +342,9 @@
         function joinMeeting() {
             if (!currentMeetingLink) return;
             
-            // 尝试拉起 Teams 应用
             const teamsProtocol = currentMeetingLink.replace('https://', 'msteams://');
             window.location.href = teamsProtocol;
             
-            // 备用：打开网页版
             setTimeout(() => {
                 window.open(currentMeetingLink, '_self');
             }, 1000);
