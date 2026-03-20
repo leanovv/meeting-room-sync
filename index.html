@@ -532,12 +532,27 @@
             
             console.log('加入会议:', currentLink);
             
+            // 获取会议室名称
+            var roomName = getRoomName(roomId) || '会议室';
+            
+            // 方案1: 优先拉起客户端
             var teamsProtocol = currentLink.replace('https://', 'msteams://');
             window.location.href = teamsProtocol;
             
+            // 方案2: 备用网页版，带上名称参数
             setTimeout(function() {
-                window.open(currentLink, '_self');
-            }, 1000);
+                var webUrl = currentLink;
+                
+                // 如果 URL 支持，添加 displayName 参数
+                if (webUrl.indexOf('?') > -1) {
+                    webUrl += '&displayName=' + encodeURIComponent(roomName);
+                } else {
+                    webUrl += '?displayName=' + encodeURIComponent(roomName);
+                }
+                
+                console.log('打开网页版:', webUrl);
+                window.open(webUrl, '_self');
+            }, 2000); // 增加等待时间，给客户端更多启动时间
         }
         
         console.log('=== 系统就绪 ===');
