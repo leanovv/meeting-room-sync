@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>会议室同步系统</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', Arial, sans-serif; }
+        
+        /* 大屏样式 */
+        .display-mode {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+        }
+        .waiting { text-align: center; max-width: 600px; }
+        .qrcode-box {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            margin: 30px auto;
+            display: inline-block;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .meeting-box {
+            display: none;
+            background: white;
+            color: #333;
+            padding: 60px;
+            border-radius: 20px;
+            max-width: 800px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .join-btn {
+            background: #0078d4;
+            color: white;
+            border: none;
+            padding: 25px 80px;
+            font-size: 28px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 30px;
+            transition: all 0.3s;
+        }
+        .join-btn:hover { 
+            background: #005a9e;
+            transform: scale(1.05);
+        }
+        
+        /* 手机样式 */
+        .mobile-mode {
+            display: none;
+            padding: 20px;
+            background: #f5f5f5;
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+        }
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            min-height: 140px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn {
+            width: 100%;
+            padding: 18px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn:active { 
+            background: #5568d3;
+            transform: scale(0.98);
+        }
+        .success {
+            display: none;
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+        .status {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin-top: 10px;
+            font-weight: 500;
+        }
+        .online { background: #28a745; color: white; }
+        .offline { background: #dc3545; color: white; }
+        .tips {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        .tips h4 { margin-bottom: 10px; color: #856404; }
+        .tips p { margin: 5px 0; color: #856404; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <!-- 大屏显示 -->
+    <div id="displayMode" class="display-mode">
+        <div id="waiting" class="waiting">
+            <h1 style="font-size: 56px; margin-bottom: 10px;">
+                会议室 <span id="roomNum1">1</span>
+            </h1>
+            <div class="status online" id="displayStatus">● 在线</div>
+            <h2 style="margin-top: 40px; font-weight: 400;">请用手机扫码发送会议链接</h2>
+            <div class="qrcode-box">
+                <canvas id="qrcode"></canvas>
+            </div>
+            <p style="font-size: 18px; margin-top: 20px;">
+                或访问: <br>
+                <strong style="font-size: 22px; word-break: break-all;" id="url"></strong>
+            </p>
+        </div>
+        <div id="meeting" class="meeting-box">
+            <h2 style="font-size: 36px; margin-bottom: 15px;" id="title">Teams 会议</h2>
+            <p style="font-size: 16px; color: #666;" id="meetingTime"></p>
+            <button class="join-btn" onclick="joinMeeting()">🎥 加入会议</button>
+        </div>
+    </div>
+
+    <!-- 手机端 -->
+    <div id="mobileMode" class="mobile-mode">
+        <div class="header">
+            <h2 style="margin: 0; font-size: 24px;">
+                会议室 <span id="roomNum2">1</span>
+            </h2>
+            <div class="status online" id="mobileStatus">● 已连接</div>
+        </div>
+        <div class="card">
+            <h3 style="margin-bottom: 15px;">📋 粘贴会议链接</h3>
+            <textarea 
+                id="meetingLink" 
+                placeholder="从 Teams 或 Outlook 复制会议链接粘贴到这里&#10;&#10;例如：&#10;https://teams.microsoft.com/l/meetup-join/..."></textarea>
+            <button class="btn" onclick="sendMeeting()">发送到大屏 →</button>
+            <div class="success" id="success">✓ 已发送到大屏！</div>
+        </div>
+        
+        <div class="tips">
+            <h4>💡 使用说明</h4>
+            <p>1️⃣ 从 Teams 或 Outlook 中复制会议链接</p>
+            <p>2️⃣ 粘贴到上方输入框</p>
+            <p>3️⃣ 点击发送按钮</p>
+            <p>4️⃣ 大屏将立即显示会议信息</p>
+        </div>
+    </div>
+
+    <script>
+        // ⚠️ 重要：请替换为您的 Supabase 配置
+        const SUPABASE_URL = 'https://yruovhpprgmfaaypskww.supabase.co';  
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlydW92aHBwcmdtZmFheXBza3d3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5Nzg5NTQsImV4cCI6MjA4OTU1NDk1NH0.sw2LmaNMWNQNpObl5nIWgJMzmRmDkkb6zbwBeQBtU4c';  
+        
+        // 初始化 Supabase
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        // 获取参数
+        const params = new URLSearchParams(location.search);
+        const roomId = params.get('room') || 'room1';
+        const type = params.get('type') || 'display';
+        
+        let currentMeetingLink = '';
+        let realtimeChannel = null;
+
+        // 初始化
+        if (type === 'mobile') {
+            initMobile();
+        } else {
+            initDisplay();
+        }
+
+        // 初始化大屏模式
+        async function initDisplay() {
+            document.getElementById('displayMode').style.display = 'flex';
+            document.getElementById('mobileMode').style.display = 'none';
+            document.getElementById('roomNum1').textContent = roomId.replace('room', '');
+            
+            const mobileUrl = `${location.origin}${location.pathname}?room=${roomId}&type=mobile`;
+            document.getElementById('url').textContent = mobileUrl;
+            
+            // 生成二维码
+            QRCode.toCanvas(
+                document.getElementById('qrcode'),
+                mobileUrl,
+                { width: 300, margin: 2 },
+                (err) => { if (err) console.error(err); }
+            );
+
+            // 订阅实时更新
+            realtimeChannel = supabase
+                .channel(`room-${roomId}`)
+                .on('postgres_changes', 
+                    { 
+                        event: '*', 
+                        schema: 'public', 
+                        table: 'meetings',
+                        filter: `room_id=eq.${roomId}`
+                    },
+                    (payload) => {
+                        console.log('收到更新:', payload);
+                        if (payload.new && payload.new.link) {
+                            showMeeting(payload.new);
+                        }
+                    }
+                )
+                .subscribe((status) => {
+                    console.log('订阅状态:', status);
+                    const statusEl = document.getElementById('displayStatus');
+                    if (status === 'SUBSCRIBED') {
+                        statusEl.textContent = '● 在线';
+                        statusEl.className = 'status online';
+                    } else {
+                        statusEl.textContent = '● 离线';
+                        statusEl.className = 'status offline';
+                    }
+                });
+
+            // 加载现有数据
+            const { data, error } = await supabase
+                .from('meetings')
+                .select('*')
+                .eq('room_id', roomId)
+                .single();
+            
+            if (data && data.link) {
+                showMeeting(data);
+            }
+        }
+
+        // 初始化手机模式
+        function initMobile() {
+            document.getElementById('displayMode').style.display = 'none';
+            document.getElementById('mobileMode').style.display = 'block';
+            document.getElementById('roomNum2').textContent = roomId.replace('room', '');
+            
+            // 检查连接状态
+            supabase.realtime.setAuth(SUPABASE_KEY);
+            
+            setTimeout(() => {
+                const status = document.getElementById('mobileStatus');
+                status.textContent = '✓ 已连接';
+                status.className = 'status online';
+            }, 500);
+        }
+
+        // 显示会议信息
+        function showMeeting(data) {
+            currentMeetingLink = data.link;
+            document.getElementById('title').textContent = data.title || 'Teams 会议';
+            
+            if (data.created_at) {
+                const time = new Date(data.created_at).toLocaleString('zh-CN');
+                document.getElementById('meetingTime').textContent = `发送时间: ${time}`;
+            }
+            
+            document.getElementById('waiting').style.display = 'none';
+            document.getElementById('meeting').style.display = 'block';
+        }
+
+        // 发送会议链接
+        async function sendMeeting() {
+            const link = document.getElementById('meetingLink').value.trim();
+            
+            if (!link) {
+                alert('请先粘贴会议链接');
+                return;
+            }
+
+            if (!link.includes('teams.microsoft.com') && !link.includes('zoom.us')) {
+                if (!confirm('链接格式可能不正确，是否仍要发送？')) {
+                    return;
+                }
+            }
+
+            const { error } = await supabase
+                .from('meetings')
+                .upsert({ 
+                    room_id: roomId, 
+                    link: link,
+                    title: '即将开始的会议',
+                    created_at: new Date().toISOString()
+                }, {
+                    onConflict: 'room_id'
+                });
+
+            if (error) {
+                console.error('发送失败:', error);
+                alert('发送失败: ' + error.message);
+                return;
+            }
+
+            // 显示成功提示
+            const successEl = document.getElementById('success');
+            successEl.style.display = 'block';
+            setTimeout(() => {
+                successEl.style.display = 'none';
+            }, 3000);
+            
+            // 清空输入
+            document.getElementById('meetingLink').value = '';
+        }
+
+        // 加入会议
+        function joinMeeting() {
+            if (!currentMeetingLink) return;
+            
+            // 尝试拉起 Teams 应用
+            const teamsProtocol = currentMeetingLink.replace('https://', 'msteams://');
+            window.location.href = teamsProtocol;
+            
+            // 备用：打开网页版
+            setTimeout(() => {
+                window.open(currentMeetingLink, '_self');
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
