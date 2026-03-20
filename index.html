@@ -2,55 +2,44 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>会议室同步系统</title>
+    <title>会议室系统</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
-            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            font-family: Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
+            color: white;
         }
         .container {
             max-width: 800px;
-            margin: 0 auto;
-            padding-top: 50px;
+            margin: 50px auto;
         }
-        .header {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            text-align: center;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-        .room-title {
-            font-size: 48px;
-            color: #333;
-            margin-bottom: 10px;
-        }
-        .status {
-            display: inline-block;
-            padding: 8px 20px;
-            border-radius: 20px;
-            font-size: 16px;
-            font-weight: 500;
-        }
-        .online { background: #28a745; color: white; }
-        .offline { background: #dc3545; color: white; }
-        
         .card {
             background: white;
             padding: 40px;
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
             margin-bottom: 20px;
-        }
-        .card h2 {
-            margin-bottom: 20px;
             color: #333;
+        }
+        h1 {
+            font-size: 48px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .status {
+            text-align: center;
+            padding: 10px;
+            background: #28a745;
+            color: white;
+            border-radius: 20px;
+            display: inline-block;
+            margin: 0 auto 30px;
+            display: block;
+            width: 150px;
         }
         textarea {
             width: 100%;
@@ -59,14 +48,10 @@
             border-radius: 10px;
             font-size: 16px;
             min-height: 120px;
-            font-family: inherit;
             resize: vertical;
+            font-family: inherit;
         }
-        textarea:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        .btn {
+        button {
             width: 100%;
             padding: 18px;
             background: #667eea;
@@ -75,4 +60,217 @@
             border-radius: 10px;
             font-size: 20px;
             font-weight: bold;
-         
+            margin-top: 15px;
+            cursor: pointer;
+        }
+        button:hover { background: #5568d3; }
+        .success {
+            display: none;
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            margin-top: 15px;
+        }
+        .meeting-display {
+            display: none;
+        }
+        #debug {
+            background: rgba(0,0,0,0.5);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 12px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>会议室 <span id="roomNum">1</span></h1>
+        <div class="status" id="status">● 系统正常</div>
+
+        <!-- 输入区域 -->
+        <div class="card" id="inputArea">
+            <h2>📋 粘贴会议链接</h2>
+            <p style="color: #666; margin: 15px 0;">从 Teams 或 Outlook 复制会议链接</p>
+            <textarea id="meetingLink" placeholder="粘贴会议链接到这里..."></textarea>
+            <button onclick="sendMeeting()">发送到大屏 →</button>
+            <div class="success" id="successMsg">✓ 已发送成功！</div>
+        </div>
+
+        <!-- 会议显示区域 -->
+        <div class="card meeting-display" id="meetingArea">
+            <h2 id="meetingTitle">Teams 会议</h2>
+            <p style="color: #666; margin: 15px 0;" id="meetingTime"></p>
+            <button onclick="joinMeeting()" style="background: #28a745;">🎥 加入会议</button>
+            <button onclick="backToInput()" style="background: #6c757d; margin-top: 10px;">← 返回</button>
+        </div>
+
+        <!-- 调试信息 -->
+        <div id="debug">
+            <div>状态：<span id="debugStatus">初始化中...</span></div>
+            <div>房间：<span id="debugRoom"></span></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // 调试函数
+        function log(msg) {
+            console.log(msg);
+            document.getElementById('debugStatus').textContent = msg;
+        }
+
+        // 获取房间号
+        var params = new URLSearchParams(location.search);
+        var roomId = params.get('room') || 'room1';
+        document.getElementById('roomNum').textContent = roomId.replace('room', '');
+        document.getElementById('debugRoom').textContent = roomId;
+        
+        log('页面加载完成');
+
+        // 全局变量
+        var db;
+        var currentLink = '';
+
+        // 初始化 Supabase
+        try {
+            var SUPABASE_URL = 'https://yruovhpprgmfaaypskww.supabase.co';
+            var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlydW92aHBwcmdtZmFheXBza3d3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5Nzg5NTQsImV4cCI6MjA4OTU1NDk1NH0.sw2LmaNMWNQNpObl5nIWgJMzmRmDkkb6zbwBeQBtU4c';
+            
+            db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            log('Supabase 连接成功');
+            
+            // 订阅实时更新
+            subscribeToUpdates();
+            
+            // 加载已有会议
+            loadExistingMeeting();
+            
+        } catch (e) {
+            log('错误: ' + e.message);
+            document.getElementById('status').textContent = '✗ 连接失败';
+            document.getElementById('status').style.background = '#dc3545';
+        }
+
+        // 订阅更新
+        function subscribeToUpdates() {
+            try {
+                db.channel('room-' + roomId)
+                    .on('postgres_changes', { 
+                        event: '*', 
+                        schema: 'public', 
+                        table: 'meetings',
+                        filter: 'room_id=eq.' + roomId
+                    }, function(payload) {
+                        log('收到更新');
+                        if (payload.new && payload.new.link) {
+                            showMeeting(payload.new);
+                        }
+                    })
+                    .subscribe(function(status) {
+                        log('订阅状态: ' + status);
+                        if (status === 'SUBSCRIBED') {
+                            document.getElementById('status').textContent = '● 在线';
+                        }
+                    });
+            } catch (e) {
+                log('订阅失败: ' + e.message);
+            }
+        }
+
+        // 加载已有会议
+        async function loadExistingMeeting() {
+            try {
+                log('加载会议数据...');
+                var result = await db.from('meetings').select('*').eq('room_id', roomId).single();
+                if (result.data && result.data.link) {
+                    log('找到已有会议');
+                    showMeeting(result.data);
+                } else {
+                    log('无已有会议');
+                }
+            } catch (e) {
+                log('加载失败: ' + e.message);
+            }
+        }
+
+        // 发送会议
+        async function sendMeeting() {
+            var link = document.getElementById('meetingLink').value.trim();
+            
+            if (!link) {
+                alert('请先粘贴会议链接');
+                return;
+            }
+
+            log('发送会议链接...');
+
+            try {
+                var result = await db.from('meetings').upsert({ 
+                    room_id: roomId, 
+                    link: link,
+                    title: '即将开始的会议',
+                    created_at: new Date().toISOString()
+                }, {
+                    onConflict: 'room_id'
+                });
+
+                if (result.error) {
+                    log('发送失败: ' + result.error.message);
+                    alert('发送失败: ' + result.error.message);
+                    return;
+                }
+
+                log('发送成功');
+                document.getElementById('successMsg').style.display = 'block';
+                setTimeout(function() {
+                    document.getElementById('successMsg').style.display = 'none';
+                    showMeeting({ link: link, title: '即将开始的会议' });
+                }, 1500);
+
+            } catch (e) {
+                log('发送异常: ' + e.message);
+                alert('发送失败: ' + e.message);
+            }
+        }
+
+        // 显示会议
+        function showMeeting(data) {
+            log('显示会议信息');
+            currentLink = data.link;
+            document.getElementById('meetingTitle').textContent = data.title || 'Teams 会议';
+            
+            if (data.created_at) {
+                var time = new Date(data.created_at).toLocaleString('zh-CN');
+                document.getElementById('meetingTime').textContent = '发送时间: ' + time;
+            }
+            
+            document.getElementById('inputArea').style.display = 'none';
+            document.getElementById('meetingArea').style.display = 'block';
+        }
+
+        // 返回输入
+        function backToInput() {
+            document.getElementById('inputArea').style.display = 'block';
+            document.getElementById('meetingArea').style.display = 'none';
+            document.getElementById('meetingLink').value = '';
+        }
+
+        // 加入会议
+        function joinMeeting() {
+            if (!currentLink) return;
+            log('加入会议');
+            
+            var teamsProtocol = currentLink.replace('https://', 'msteams://');
+            window.location.href = teamsProtocol;
+            
+            setTimeout(function() {
+                window.open(currentLink, '_self');
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
