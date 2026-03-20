@@ -8,8 +8,6 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Microsoft YaHei', Arial, sans-serif; }
-        
-        /* 大屏样式 */
         .display-mode {
             display: flex;
             align-items: center;
@@ -25,7 +23,6 @@
             padding: 30px;
             border-radius: 20px;
             margin: 30px auto;
-            display: inline-block;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
         .meeting-box {
@@ -48,12 +45,7 @@
             margin-top: 30px;
             transition: all 0.3s;
         }
-        .join-btn:hover { 
-            background: #005a9e;
-            transform: scale(1.05);
-        }
-        
-        /* 手机样式 */
+        .join-btn:hover { background: #005a9e; transform: scale(1.05); }
         .mobile-mode {
             display: none;
             padding: 20px;
@@ -83,13 +75,9 @@
             font-size: 16px;
             min-height: 140px;
             font-family: inherit;
-            transition: border-color 0.3s;
             resize: vertical;
         }
-        textarea:focus {
-            outline: none;
-            border-color: #667eea;
-        }
+        textarea:focus { outline: none; border-color: #667eea; }
         .btn {
             width: 100%;
             padding: 18px;
@@ -103,10 +91,7 @@
             cursor: pointer;
             transition: all 0.3s;
         }
-        .btn:active { 
-            background: #5568d3;
-            transform: scale(0.98);
-        }
+        .btn:active { background: #5568d3; transform: scale(0.98); }
         .success {
             display: none;
             background: #d4edda;
@@ -139,19 +124,15 @@
     </style>
 </head>
 <body>
-    <!-- 大屏显示 -->
     <div id="displayMode" class="display-mode">
         <div id="waiting" class="waiting">
-            <h1 style="font-size: 56px; margin-bottom: 10px;">
-                会议室 <span id="roomNum1">1</span>
-            </h1>
+            <h1 style="font-size: 56px; margin-bottom: 10px;">会议室 <span id="roomNum1">1</span></h1>
             <div class="status online" id="displayStatus">● 在线</div>
             <h2 style="margin-top: 40px; font-weight: 400;">请用手机扫码发送会议链接</h2>
             <div class="qrcode-box" id="qrcodeContainer">
                 <p style="color: #666;">二维码加载中...</p>
             </div>
-            <p style="font-size: 18px; margin-top: 20px;">
-                或访问: <br>
+            <p style="font-size: 18px; margin-top: 20px;">或访问: <br>
                 <strong style="font-size: 20px; word-break: break-all;" id="urlDisplay"></strong>
             </p>
         </div>
@@ -162,23 +143,17 @@
         </div>
     </div>
 
-    <!-- 手机端 -->
     <div id="mobileMode" class="mobile-mode">
         <div class="header">
-            <h2 style="margin: 0; font-size: 24px;">
-                会议室 <span id="roomNum2">1</span>
-            </h2>
+            <h2 style="margin: 0; font-size: 24px;">会议室 <span id="roomNum2">1</span></h2>
             <div class="status online" id="mobileStatus">● 已连接</div>
         </div>
         <div class="card">
             <h3 style="margin-bottom: 15px;">📋 粘贴会议链接</h3>
-            <textarea 
-                id="meetingLink" 
-                placeholder="从 Teams 或 Outlook 复制会议链接粘贴到这里&#10;&#10;例如：&#10;https://teams.microsoft.com/l/meetup-join/..."></textarea>
+            <textarea id="meetingLink" placeholder="从 Teams 或 Outlook 复制会议链接粘贴到这里&#10;&#10;例如：&#10;https://teams.microsoft.com/l/meetup-join/..."></textarea>
             <button class="btn" onclick="sendMeeting()">发送到大屏 →</button>
             <div class="success" id="successMsg">✓ 已发送到大屏！</div>
         </div>
-        
         <div class="tips">
             <h4>💡 使用说明</h4>
             <p>1️⃣ 从 Teams 或 Outlook 中复制会议链接</p>
@@ -189,66 +164,57 @@
     </div>
 
     <script>
-        // Supabase 配置
+        // ========== 配置区域 ==========
         const SUPABASE_URL = 'https://yruovhpprgmfaaypskww.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlydW92aHBwcmdtZmFheXBza3d3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5Nzg5NTQsImV4cCI6MjA4OTU1NDk1NH0.sw2LmaNMWNQNpObl5nIWgJMzmRmDkkb6zbwBeQBtU4c';
         
-        // 初始化 Supabase（只声明一次）
+        // ========== 初始化（只执行一次）==========
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        
-        // 获取参数
         const params = new URLSearchParams(location.search);
         const roomId = params.get('room') || 'room1';
         const type = params.get('type') || 'display';
-        
         let currentMeetingLink = '';
         let realtimeChannel = null;
 
-        // 初始化
+        // ========== 启动应用 ==========
         if (type === 'mobile') {
             initMobile();
         } else {
             initDisplay();
         }
 
-        // 初始化大屏模式
+        // ========== 大屏模式 ==========
         async function initDisplay() {
             document.getElementById('displayMode').style.display = 'flex';
             document.getElementById('mobileMode').style.display = 'none';
             document.getElementById('roomNum1').textContent = roomId.replace('room', '');
             
-            const mobileUrl = `${location.origin}${location.pathname}?room=${roomId}&type=mobile`;
+            const mobileUrl = location.origin + location.pathname + '?room=' + roomId + '&type=mobile';
             document.getElementById('urlDisplay').textContent = mobileUrl;
             
-            // 使用 API 生成二维码
-            const qrContainer = document.getElementById('qrcodeContainer');
-            qrContainer.innerHTML = `
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(mobileUrl)}" 
-                     alt="扫码访问" 
-                     style="display: block; width: 100%; max-width: 300px; border-radius: 10px;"
-                     onerror="this.parentElement.innerHTML='<p style=color:#666;>二维码加载失败<br>请手动输入网址</p>'">
-            `;
+            // 生成二维码
+            document.getElementById('qrcodeContainer').innerHTML = 
+                '<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=' + 
+                encodeURIComponent(mobileUrl) + 
+                '" alt="扫码访问" style="display:block;width:100%;max-width:300px;border-radius:10px;" ' +
+                'onerror="this.parentElement.innerHTML=\'<p style=color:#666>二维码加载失败<br>请手动输入网址</p>\'">';
 
             // 订阅实时更新
-            realtimeChannel = supabase
-                .channel(`room-${roomId}`)
-                .on('postgres_changes', 
-                    { 
-                        event: '*', 
-                        schema: 'public', 
-                        table: 'meetings',
-                        filter: `room_id=eq.${roomId}`
-                    },
-                    (payload) => {
-                        console.log('收到更新:', payload);
-                        if (payload.new && payload.new.link) {
-                            showMeeting(payload.new);
-                        }
+                    realtimeChannel = supabase.channel('room-' + roomId)
+                .on('postgres_changes', { 
+                    event: '*', 
+                    schema: 'public', 
+                    table: 'meetings',
+                    filter: 'room_id=eq.' + roomId
+                }, function(payload) {
+                    console.log('收到更新:', payload);
+                    if (payload.new && payload.new.link) {
+                        showMeeting(payload.new);
                     }
-                )
-                .subscribe((status) => {
+                })
+                .subscribe(function(status) {
                     console.log('订阅状态:', status);
-                    const statusEl = document.getElementById('displayStatus');
+                    var statusEl = document.getElementById('displayStatus');
                     if (status === 'SUBSCRIBED') {
                         statusEl.textContent = '● 在线';
                         statusEl.className = 'status online';
@@ -259,93 +225,88 @@
                 });
 
             // 加载现有数据
-            const { data, error } = await supabase
-                .from('meetings')
-                .select('*')
-                .eq('room_id', roomId)
-                .single();
-            
-            if (data && data.link) {
-                showMeeting(data);
+            var result = await supabase.from('meetings').select('*').eq('room_id', roomId).single();
+            if (result.data && result.data.link) {
+                showMeeting(result.data);
             }
         }
 
-        // 初始化手机模式
+        // ========== 手机模式 ==========
         function initMobile() {
             document.getElementById('displayMode').style.display = 'none';
             document.getElementById('mobileMode').style.display = 'block';
             document.getElementById('roomNum2').textContent = roomId.replace('room', '');
             
-            setTimeout(() => {
-                const status = document.getElementById('mobileStatus');
+            setTimeout(function() {
+                var status = document.getElementById('mobileStatus');
                 status.textContent = '✓ 已连接';
                 status.className = 'status online';
             }, 500);
         }
 
-        // 显示会议信息
+        // ========== 显示会议 ==========
         function showMeeting(data) {
             currentMeetingLink = data.link;
             document.getElementById('meetingTitle').textContent = data.title || 'Teams 会议';
             
             if (data.created_at) {
-                const time = new Date(data.created_at).toLocaleString('zh-CN');
-                document.getElementById('meetingTime').textContent = `发送时间: ${time}`;
+                var time = new Date(data.created_at).toLocaleString('zh-CN');
+                document.getElementById('meetingTime').textContent = '发送时间: ' + time;
             }
             
             document.getElementById('waiting').style.display = 'none';
             document.getElementById('meetingDisplay').style.display = 'block';
         }
 
-        // 发送会议链接
+        // ========== 发送会议 ==========
         async function sendMeeting() {
-            const link = document.getElementById('meetingLink').value.trim();
+            var link = document.getElementById('meetingLink').value.trim();
             
             if (!link) {
                 alert('请先粘贴会议链接');
                 return;
             }
 
-            if (!link.includes('teams.microsoft.com') && !link.includes('zoom.us') && !link.includes('meet.google.com')) {
+            if (link.indexOf('teams.microsoft.com') === -1 && 
+                link.indexOf('zoom.us') === -1 && 
+                link.indexOf('meet.google.com') === -1) {
                 if (!confirm('链接格式可能不正确，是否仍要发送？')) {
                     return;
                 }
             }
 
-            const { error } = await supabase
-                .from('meetings')
-                .upsert({ 
-                    room_id: roomId, 
-                    link: link,
-                    title: '即将开始的会议',
-                    created_at: new Date().toISOString()
-                }, {
-                    onConflict: 'room_id'
-                });
+            var result = await supabase.from('meetings').upsert({ 
+                room_id: roomId, 
+                link: link,
+                title: '即将开始的会议',
+                created_at: new Date().toISOString()
+            }, {
+                onConflict: 'room_id'
+            });
 
-            if (error) {
-                console.error('发送失败:', error);
-                alert('发送失败: ' + error.message);
+            if (result.error) {
+                console.error('发送失败:', result.error);
+                alert('发送失败: ' + result.error.message);
                 return;
             }
 
-            const successEl = document.getElementById('successMsg');
+            var successEl = document.getElementById('successMsg');
             successEl.style.display = 'block';
-            setTimeout(() => {
+            setTimeout(function() {
                 successEl.style.display = 'none';
             }, 3000);
             
             document.getElementById('meetingLink').value = '';
         }
 
-        // 加入会议
+        // ========== 加入会议 ==========
         function joinMeeting() {
             if (!currentMeetingLink) return;
             
-            const teamsProtocol = currentMeetingLink.replace('https://', 'msteams://');
+            var teamsProtocol = currentMeetingLink.replace('https://', 'msteams://');
             window.location.href = teamsProtocol;
             
-            setTimeout(() => {
+            setTimeout(function() {
                 window.open(currentMeetingLink, '_self');
             }, 1000);
         }
