@@ -363,7 +363,15 @@
             console.log('发送会议到:', targetRoomId);
             
             try {
-                var now = new Date().toISOString();
+                // 直接保存北京时间字符串
+                var date = new Date();
+                var now = date.getFullYear() + '-' + 
+                          String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+                          String(date.getDate()).padStart(2, '0') + ' ' +
+                          String(date.getHours()).padStart(2, '0') + ':' + 
+                          String(date.getMinutes()).padStart(2, '0') + ':' + 
+                          String(date.getSeconds()).padStart(2, '0');
+                console.log('保存的北京时间:', now);    
                 var result = await db
                     .from('meetings')
                     .upsert({ 
